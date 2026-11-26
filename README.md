@@ -18,7 +18,7 @@ oss-contrib/
 ├── tasks/                     ← 进行中的单个开源任务工作目录（每题一个子目录）
 ├── summaries/                 ← 已完成/阶段收口任务的总结（权威源，定期同步回 PlanA）
 ├── upstream/                  ← 外部上游仓库的本地 clone / fork（被 Git 忽略，不入本仓）
-├── envs/                      ← 各项目独立环境配置脚本（环境产物本身被 Git 忽略）
+├── envs/                      ← 各项目独立环境脚本与多硬件 Docker 容器配置（见 envs/README.md；产物被 Git 忽略）
 └── scripts/
     └── sync_with_plana.py     ← 与 ../PlanA 的双向（分目录单向权威）同步脚本
 ```

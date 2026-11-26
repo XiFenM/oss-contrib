@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1.7
+# Generic overlay Dockerfile for OTHER accelerators / vendor-supplied base images
+# (e.g. Intel XPU, Qualcomm Cloud AI / QNN, Ascend CANN Ubuntu images, custom NPU SDK containers).
+#
+# Usage:
+#   OTHER_BASE_IMAGE=<vendor-ubuntu-or-debian-image> docker compose --profile other build
+#
+# Preserves the vendor image's existing SDK environment variables and runtime libraries,
+# while layering uv, build tools, workspace conventions, and persistent caches on top.
+
+ARG BASE_IMAGE=ubuntu:24.04
+FROM ${BASE_IMAGE}
+
+ARG USERNAME=dev
+ARG USER_UID=1000
+ARG USER_GID=1000
+ARG APT_MIRROR=""
+ARG INSTALL_GH_CLI=true
+ARG INSTALL_CPP_EXTRA=false
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+COPY scripts/install-common.sh /tmp/install-common.sh
+RUN chmod +x /tmp/install-common.sh && \
+    APT_MIRROR="${APT_MIRROR}" \
+    INSTALL_GH_CLI="${INSTALL_GH_CLI}" \
+    INSTALL_CPP_EXTRA="${INSTALL_CPP_EXTRA}" \
+    USERNAME="${USERNAME}" \
+    USER_UID="${USER_UID}" \
+    USER_GID="${USER_GID}" \
+    /tmp/install-common.sh && \
+    rm -f /tmp/install-common.sh
+
+COPY scripts/entrypoint.sh /usr/local/bin/oss-entrypoint.sh
+COPY scripts/mkvenv.sh /usr/local/bin/mkvenv
+RUN chmod +x /usr/local/bin/oss-entrypoint.sh /usr/local/bin/mkvenv
+
+# Append rather than overwrite PATH so vendor SDK binaries remain intact
+ENV LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    OSS_CONTRIB_PROFILE=other \
+    MAX_JOBS=4 \
+    UV_CACHE_DIR=/cache/uv \
+    UV_PYTHON_INSTALL_DIR=/opt/uv-python \
+    UV_LINK_MODE=copy \
+    PIP_CACHE_DIR=/cache/pip \
+    HF_HOME=/cache/huggingface \
+    TORCH_HOME=/cache/torch \
+    CCACHE_DIR=/cache/ccache \
+    TRITON_CACHE_DIR=/cache/triton \
+    PATH="${PATH}:/usr/lib/ccache:/usr/local/bin"
+
+WORKDIR /workspace/oss-contrib
+USER ${USER_UID}:${USER_GID}
+
+ENTRYPOINT ["/usr/local/bin/oss-entrypoint.sh"]
+CMD ["sleep", "infinity"]

@@ -1,0 +1,56 @@
+# syntax=docker/dockerfile:1.7
+# AMD ROCm development container (single-GPU ROCm).
+# Default: rocm/dev-ubuntu-24.04:7.1.1-complete (includes hipcc, rocprofv3/ROCTX, ROCm libs).
+# Override BASE_IMAGE (e.g. rocm/dev-ubuntu-24.04:6.4.4-complete or rocm/pytorch:latest) to match host KFD driver.
+# Target workloads: ROCm/mori, ROCm/rocm-aic#221, sglang-omni#2416, LMCache#5075/#6345.
+
+ARG BASE_IMAGE=rocm/dev-ubuntu-24.04:7.1.1-complete
+FROM ${BASE_IMAGE}
+
+ARG USERNAME=dev
+ARG USER_UID=1000
+ARG USER_GID=1000
+ARG APT_MIRROR=""
+ARG INSTALL_GH_CLI=true
+ARG INSTALL_CPP_EXTRA=true
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+COPY scripts/install-common.sh /tmp/install-common.sh
+RUN chmod +x /tmp/install-common.sh && \
+    APT_MIRROR="${APT_MIRROR}" \
+    INSTALL_GH_CLI="${INSTALL_GH_CLI}" \
+    INSTALL_CPP_EXTRA="${INSTALL_CPP_EXTRA}" \
+    USERNAME="${USERNAME}" \
+    USER_UID="${USER_UID}" \
+    USER_GID="${USER_GID}" \
+    /tmp/install-common.sh && \
+    rm -f /tmp/install-common.sh
+
+COPY scripts/entrypoint.sh /usr/local/bin/oss-entrypoint.sh
+COPY scripts/mkvenv.sh /usr/local/bin/mkvenv
+RUN chmod +x /usr/local/bin/oss-entrypoint.sh /usr/local/bin/mkvenv && \
+    printf '/opt/rocm/lib\n/opt/rocm/lib64\n' > /etc/ld.so.conf.d/99-oss-contrib-rocm.conf && \
+    ldconfig
+
+ENV LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    OSS_CONTRIB_PROFILE=rocm \
+    ROCM_PATH=/opt/rocm \
+    HIP_PATH=/opt/rocm \
+    MAX_JOBS=4 \
+    UV_CACHE_DIR=/cache/uv \
+    UV_PYTHON_INSTALL_DIR=/opt/uv-python \
+    UV_LINK_MODE=copy \
+    PIP_CACHE_DIR=/cache/pip \
+    HF_HOME=/cache/huggingface \
+    TORCH_HOME=/cache/torch \
+    CCACHE_DIR=/cache/ccache \
+    TRITON_CACHE_DIR=/cache/triton \
+    PATH="/usr/lib/ccache:/opt/rocm/bin:/opt/rocm/llvm/bin:/usr/local/bin:${PATH}"
+
+WORKDIR /workspace/oss-contrib
+USER ${USER_UID}:${USER_GID}
+
+ENTRYPOINT ["/usr/local/bin/oss-entrypoint.sh"]
+CMD ["sleep", "infinity"]

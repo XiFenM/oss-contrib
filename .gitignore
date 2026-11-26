@@ -2,13 +2,16 @@
 /upstream/*
 !/upstream/.gitkeep
 
-# 本地虚拟环境、Conda、构建与包缓存（只允许留轻量的脚本与说明）
+# 本地虚拟环境、Conda、构建与包缓存（只允许留轻量的脚本、容器配置与说明）
 /envs/*
 !/envs/.gitkeep
 !/envs/*.md
 !/envs/*.sh
 !/envs/*.yml
 !/envs/*.yaml
+!/envs/docker/
+/envs/docker/.env
+/envs/docker/compose.override.yml
 .venv/
 venv/
 __pycache__/

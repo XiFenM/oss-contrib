@@ -1,0 +1,149 @@
+# Multi-hardware Docker Compose for oss-contrib.
+# Start only the hardware profile you need:
+#   docker compose --profile cpu up -d --build
+#   docker compose --profile nvidia up -d --build
+#   docker compose --profile rocm up -d --build
+#   docker compose --profile other up -d --build
+
+x-common-build-args: &common-build-args
+  USERNAME: "${DEV_USERNAME:-dev}"
+  USER_UID: "${DEV_UID:-1000}"
+  USER_GID: "${DEV_GID:-1000}"
+  APT_MIRROR: "${APT_MIRROR:-}"
+  INSTALL_GH_CLI: "${INSTALL_GH_CLI:-true}"
+
+x-common-env: &common-env
+  HTTP_PROXY: "${HTTP_PROXY:-}"
+  HTTPS_PROXY: "${HTTPS_PROXY:-}"
+  NO_PROXY: "${NO_PROXY:-localhost,127.0.0.1}"
+  UV_INDEX_URL: "${UV_INDEX_URL:-}"
+  HF_ENDPOINT: "${HF_ENDPOINT:-}"
+  HF_TOKEN: "${HF_TOKEN:-}"
+  MAX_JOBS: "${MAX_JOBS:-4}"
+
+x-common-service: &common-service
+  stdin_open: true
+  tty: true
+  working_dir: /workspace/oss-contrib
+  volumes:
+    - ../..:/workspace/oss-contrib
+    - oss-contrib-cache:/cache
+    # Optional: mount host gitconfig / ssh keys if needed on a trusted dev box:
+    # - ~/.gitconfig:/home/dev/.gitconfig:ro
+    # - ~/.ssh:/home/dev/.ssh:ro
+
+services:
+  cpu:
+    <<: *common-service
+    profiles: ["cpu"]
+    image: "oss-contrib-cpu:local"
+    container_name: oss-contrib-cpu
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+      args:
+        <<: *common-build-args
+        BASE_IMAGE: "${CPU_BASE_IMAGE:-ubuntu:24.04}"
+        INSTALL_CPP_EXTRA: "${INSTALL_CPP_EXTRA:-true}"
+    shm_size: "${SHM_SIZE:-4gb}"
+    environment:
+      <<: *common-env
+
+  nvidia:
+    <<: *common-service
+    profiles: ["nvidia"]
+    image: "oss-contrib-nvidia:local"
+    container_name: oss-contrib-nvidia
+    build:
+      context: .
+      dockerfile: Dockerfile.nvidia
+      args:
+        <<: *common-build-args
+        BASE_IMAGE: "${NVIDIA_BASE_IMAGE:-nvidia/cuda:12.8.0-devel-ubuntu24.04}"
+        INSTALL_CPP_EXTRA: "${INSTALL_CPP_EXTRA:-true}"
+    ipc: host
+    shm_size: "${SHM_SIZE:-16gb}"
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    environment:
+      <<: *common-env
+      NVIDIA_VISIBLE_DEVICES: "${NVIDIA_VISIBLE_DEVICES:-all}"
+      TORCH_CUDA_ARCH_LIST: "${TORCH_CUDA_ARCH_LIST:-}"
+      PYTORCH_CUDA_TAG: "${PYTORCH_CUDA_TAG:-cu128}"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  rocm:
+    <<: *common-service
+    profiles: ["rocm"]
+    image: "oss-contrib-rocm:local"
+    container_name: oss-contrib-rocm
+    build:
+      context: .
+      dockerfile: Dockerfile.rocm
+      args:
+        <<: *common-build-args
+        BASE_IMAGE: "${ROCM_BASE_IMAGE:-rocm/dev-ubuntu-24.04:7.1.1-complete}"
+        INSTALL_CPP_EXTRA: "${INSTALL_CPP_EXTRA:-true}"
+    ipc: host
+    shm_size: "${SHM_SIZE:-16gb}"
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - "${RENDER_GID:-render}"
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    environment:
+      <<: *common-env
+      HIP_VISIBLE_DEVICES: "${HIP_VISIBLE_DEVICES:-0}"
+      HSA_OVERRIDE_GFX_VERSION: "${HSA_OVERRIDE_GFX_VERSION:-}"
+      PYTORCH_ROCM_ARCH: "${PYTORCH_ROCM_ARCH:-}"
+      MORI_GPU_ARCHS: "${MORI_GPU_ARCHS:-}"
+      PYTORCH_ROCM_TAG: "${PYTORCH_ROCM_TAG:-rocm6.4}"
+
+  other:
+    <<: *common-service
+    profiles: ["other"]
+    image: "oss-contrib-other:local"
+    container_name: oss-contrib-other
+    build:
+      context: .
+      dockerfile: Dockerfile.other
+      args:
+        <<: *common-build-args
+        BASE_IMAGE: "${OTHER_BASE_IMAGE:-ubuntu:24.04}"
+        INSTALL_CPP_EXTRA: "${OTHER_INSTALL_CPP_EXTRA:-false}"
+    ipc: host
+    shm_size: "${SHM_SIZE:-16gb}"
+    # Uncomment and adjust device mappings for your target accelerator (or create a compose.override.yml):
+    # - Intel XPU:
+    #   devices: ["/dev/dri:/dev/dri"]
+    #   group_add: ["video", "${RENDER_GID:-render}"]
+    # - Qualcomm Cloud AI (QAIC):
+    #   devices: ["/dev/accel:/dev/accel"]
+    # - Huawei Ascend NPU:
+    #   devices:
+    #     - /dev/davinci0:/dev/davinci0
+    #     - /dev/davinci_manager:/dev/davinci_manager
+    #     - /dev/devmm_svm:/dev/devmm_svm
+    #     - /dev/hisi_hdc:/dev/hisi_hdc
+    environment:
+      <<: *common-env
+      SKIP_TORCH: "${OTHER_SKIP_TORCH:-1}"
+
+volumes:
+  oss-contrib-cache:
+    name: oss-contrib-cache
