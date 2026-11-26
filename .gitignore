@@ -1,0 +1,45 @@
+# 外部上游仓库克隆目录（全部忽略，只保留占位文件）
+/upstream/*
+!/upstream/.gitkeep
+
+# 本地虚拟环境、Conda、构建与包缓存（只允许留轻量的脚本与说明）
+/envs/*
+!/envs/.gitkeep
+!/envs/*.md
+!/envs/*.sh
+!/envs/*.yml
+!/envs/*.yaml
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+*.whl
+*.so
+*.dylib
+*.o
+*.a
+
+# 大型临时数据、日志、压缩包与模型权重
+*.log
+*.tmp
+*.tar
+*.tar.gz
+*.tar.bz2
+*.zip
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+*.gguf
+
+# 系统与编辑器文件
+.DS_Store
+.idea/
+.vscode/
