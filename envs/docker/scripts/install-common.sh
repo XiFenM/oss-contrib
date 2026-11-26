@@ -18,12 +18,18 @@ if ! command -v apt-get >/dev/null 2>&1; then
   exit 1
 fi
 
-# Optional APT mirror override (supports both Ubuntu 24.04 DEB822 and legacy sources.list, amd64 & arm64)
+# Optional APT mirror override (supports Ubuntu 24.04 DEB822 and legacy sources.list, amd64 & arm64).
+# Defaults to http:// when no scheme is provided, because minimal base images lack ca-certificates
+# before the first apt-get install.
 if [[ -n "${APT_MIRROR}" ]]; then
-  echo "[INFO] Switching APT mirror to ${APT_MIRROR}"
+  MIRROR_URL="${APT_MIRROR%/}"
+  if [[ "${MIRROR_URL}" != http://* && "${MIRROR_URL}" != https://* ]]; then
+    MIRROR_URL="http://${MIRROR_URL}"
+  fi
+  echo "[INFO] Switching APT mirror to ${MIRROR_URL}"
   for src in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
     if [[ -f "${src}" ]]; then
-      sed -i -E "s|https?://(archive|security|ports)\.ubuntu\.com|https://${APT_MIRROR}|g" "${src}" || true
+      sed -i -E "s#https?://([a-z0-9-]+\.)?(archive|security|ports)\.ubuntu\.com#${MIRROR_URL}#g" "${src}"
     fi
   done
 fi
